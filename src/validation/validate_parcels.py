@@ -6,9 +6,9 @@ from pydantic import ValidationError
 from src.validation.parcel import Parcel
 
 
-INPUT_FILE = Path("data/raw/parcels.csv")
-VALIDATED_FILE = Path("data/raw/parcels_validated.csv")
-QUARANTINE_FILE = Path("data/quarantine/parcels_rejected.csv")
+INPUT_FILE = Path("data/generated/parcels.csv") 
+VALIDATED_FILE = Path("data/raw/parcels.csv")
+QUARANTINE_FILE = Path("data/quarantine/parcels_rejected.csv")  # inchangé
 
 NULLABLE_FIELDS = {
     "latitude",

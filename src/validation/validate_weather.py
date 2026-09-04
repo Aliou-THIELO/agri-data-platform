@@ -6,10 +6,9 @@ from pydantic import ValidationError
 from src.validation.weather import WeatherReading
 
 
-INPUT_FILE = Path("data/raw/weather.csv")
-VALIDATED_FILE = Path("data/raw/weather_validated.csv")
-QUARANTINE_FILE = Path("data/quarantine/weather_rejected.csv")
-
+INPUT_FILE = Path("data/generated/weather.csv") 
+VALIDATED_FILE = Path("data/raw/weather.csv")
+QUARANTINE_FILE = Path("data/quarantine/weather_rejected.csv")  # inchangé
 
 FIELDNAMES = [
     "zone",

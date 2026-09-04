@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 
-OUTPUT_FILE = Path("data/raw/parcels.csv")
+OUTPUT_FILE = Path("data/generated/parcels.csv")
 NUMBER_OF_PARCELS = 25
 
 ZONES = [
