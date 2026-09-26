@@ -1,12 +1,12 @@
 import csv
 import random
-import uuid
 from datetime import date, timedelta
 from pathlib import Path
 
 
 OUTPUT_FILE = Path("data/generated/parcels.csv")
 NUMBER_OF_PARCELS = 25
+SEED = 42
 
 ZONES = [
     "Niayes",
@@ -61,7 +61,7 @@ def generate_parcel() -> dict:
     )
 
     return {
-        "parcel_id": uuid.uuid4().hex[:8],
+        "parcel_id": f"{random.getrandbits(32):08x}",
         "zone": random.choice(ZONES),
         "crop": random.choice(CROPS),
         "surface_m2": round(random.uniform(200, 5000), 2),
@@ -74,6 +74,8 @@ def generate_parcel() -> dict:
 
 def generate_parcels() -> list[dict]:
     """Génère l'ensemble des parcelles."""
+    random.seed(SEED)
+
     parcels = [
         generate_parcel()
         for _ in range(NUMBER_OF_PARCELS)
@@ -111,4 +113,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
+    

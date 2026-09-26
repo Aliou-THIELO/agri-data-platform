@@ -57,3 +57,7 @@ CREATE TABLE IF NOT EXISTS agri_dw.fact_harvest (
 CREATE INDEX IF NOT EXISTS idx_fact_irrigation_parcel ON agri_dw.fact_irrigation(parcel_dim_id);
 CREATE INDEX IF NOT EXISTS idx_fact_harvest_parcel ON agri_dw.fact_harvest(parcel_dim_id);
 CREATE INDEX IF NOT EXISTS idx_dim_parcel_source_id ON agri_dw.dim_parcel(parcel_id);
+
+CREATE OR REPLACE VIEW agri_dw.dim_date_lookup AS
+SELECT date_id::text AS date_id, year, month, day, quarter, day_of_week
+FROM agri_dw.dim_date;
