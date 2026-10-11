@@ -48,6 +48,7 @@ services:
       - "${MONGO_PORT}:27017"
     volumes:
       - mongodata:/data/db
+      - ./mongo:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -69,14 +70,18 @@ services:
       - nifi_content:/opt/nifi/nifi-current/content_repository
       - nifi_flowfile:/opt/nifi/nifi-current/flowfile_repository
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
-      - ./data:/opt/nifi/nifi-current/data          # ← ligne ajoutée
+      - ./data:/opt/nifi/nifi-current/data
+      - ./nifi/drivers:/opt/nifi/nifi-current/jdbc-drivers
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.1
     container_name: agri_grafana
     restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
 
