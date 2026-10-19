@@ -1,0 +1,13 @@
+apiVersion: 1
+datasources:
+  - name: Postgres-agri
+    type: postgres
+    uid: cfztyv3990zcwe
+    access: proxy
+    url: postgres:5432
+    user: agri_user
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}
+    jsonData:
+      database: agri_db
+      sslmode: disable
