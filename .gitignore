@@ -39,7 +39,10 @@ data/raw/*
 
 data/quarantine/*
 !data/quarantine/.gitkeep
-
+!data/quarantine/harvest_sales_rejected.csv
+!data/quarantine/irrigation_rejected.jsonl
+!data/quarantine/parcels_rejected.csv
+!data/quarantine/weather_rejected.csv
 # ==============================
 # IDE / Editor
 # ==============================

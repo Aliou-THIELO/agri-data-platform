@@ -1,0 +1,26 @@
+parcel_id,zone,crop,surface_m2,planting_date,latitude,longitude,manager
+a65ed389,Sine-Saloum,Piment,2356.2,2026-02-15,,,Coopérative B
+6c307511,Casamance,Aubergine,946.3,2026-02-14,16.418705,-15.985325,Coopérative A
+18c26797,Casamance,Gombo,3097.88,2026-01-25,16.133544,-14.216207,Coopérative A
+60e7a113,Niayes,Poivron,1607.26,2026-03-01,15.794416,-13.515467,Exploitant indépendant
+3139d32c,Niayes,Tomate,3374.06,2026-02-06,16.06883,-13.066503,Coopérative B
+19db3ad0,Sine-Saloum,Aubergine,2376.37,2026-02-25,16.18481,-16.768057,Exploitant indépendant
+ab9099a4,Casamance,Oignon,3123.83,2026-01-14,14.925163,-14.218929,Coopérative B
+6123fdf7,Casamance,Poivron,1254.15,2026-01-30,15.216137,-14.042589,Coopérative A
+d261a7ab,Niayes,Gombo,2125.59,2026-01-15,14.725758,-13.390887,Exploitant indépendant
+a7cad415,Sine-Saloum,Carotte,4446.48,2026-01-14,15.821419,-16.857078,Coopérative B
+beb79919,Casamance,Concombre,2256.48,2026-01-16,15.708713,-15.871016,Coopérative B
+7e570ddf,Niayes,Tomate,4333.29,2026-02-02,14.890399,-16.780081,
+10435a10,Sine-Saloum,Carotte,3060.26,2026-02-08,15.489295,-16.368636,Coopérative A
+b88139b9,Niayes,Poivron,3804.21,2026-02-13,16.060338,-15.96921,Exploitant indépendant
+287d06ca,Sine-Saloum,Tomate,4778.32,2026-01-28,16.264121,-16.314749,Coopérative B
+e9a1fa6f,Niayes,Aubergine,4240.01,2026-02-02,15.564559,-16.6049,Exploitant indépendant
+295b4715,Niayes,Concombre,1755.95,2026-02-18,14.637006,-13.319056,Exploitant indépendant
+0ed42f1a,Vallée du Fleuve,Concombre,4745.36,2026-01-16,14.762742,-15.313043,Coopérative A
+885f6e66,Vallée du Fleuve,Chou,3366.8,2026-02-18,16.399012,-16.756929,
+edcd465e,Vallée du Fleuve,Aubergine,2115.16,2026-01-14,15.876205,-15.819608,
+3f76be1d,Vallée du Fleuve,Oignon,1822.81,2026-01-08,15.717787,-16.464484,Coopérative B
+122c9a56,Niayes,Piment,523.52,2026-01-01,14.659685,-16.013072,Coopérative B
+ab4220a7,Sine-Saloum,Piment,2788.32,2026-01-18,15.97437,-13.529276,
+1c80317f,Niayes,Aubergine,-500,2026-02-10,14.865122,-17.038772,Coopérative A
+6c031199,Niayes,Tomate,0,2026-02-07,15.042056,-14.790916,Coopérative B

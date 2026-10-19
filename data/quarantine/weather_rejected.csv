@@ -1,0 +1,13 @@
+zone,date,temperature_c,precipitation_mm,humidity_pct,validation_error
+Niayes,2026-01-01,-5,1.8,37.13,"1 validation error for WeatherReading
+temperature_c
+  Input should be greater than or equal to 22 [type=greater_than_equal, input_value='-5', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/greater_than_equal"
+Niayes,2026-01-02,55,1.31,40.16,"1 validation error for WeatherReading
+temperature_c
+  Input should be less than or equal to 38 [type=less_than_equal, input_value='55', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/less_than_equal"
+Niayes,2026-01-03,-8,0.7,84.13,"1 validation error for WeatherReading
+temperature_c
+  Input should be greater than or equal to 22 [type=greater_than_equal, input_value='-8', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/greater_than_equal"

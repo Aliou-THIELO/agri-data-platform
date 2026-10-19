@@ -1,0 +1,9 @@
+parcel_id,zone,crop,surface_m2,planting_date,latitude,longitude,manager,validation_error
+1c80317f,Niayes,Aubergine,-500,2026-02-10,14.865122,-17.038772,Coopérative A,"1 validation error for Parcel
+surface_m2
+  Input should be greater than 0 [type=greater_than, input_value='-500', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/greater_than"
+6c031199,Niayes,Tomate,0,2026-02-07,15.042056,-14.790916,Coopérative B,"1 validation error for Parcel
+surface_m2
+  Input should be greater than 0 [type=greater_than, input_value='0', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/greater_than"

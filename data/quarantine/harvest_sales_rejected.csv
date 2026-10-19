@@ -1,0 +1,9 @@
+parcel_id,harvest_date,harvest_kg,sold_kg,unit_price_fcfa,validation_error
+885f6e66,2026-04-03,1237.8,1423.5,523,"1 validation error for HarvestSale
+sold_kg
+  Value error, sold_kg (1423.5) ne peut pas dépasser harvest_kg (1237.8) [type=value_error, input_value='1423.5', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+ab4220a7,2026-04-26,665.1,764.9,258,"1 validation error for HarvestSale
+sold_kg
+  Value error, sold_kg (764.9) ne peut pas dépasser harvest_kg (665.1) [type=value_error, input_value='764.9', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
