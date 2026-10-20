@@ -37,57 +37,33 @@ La plateforme fournit un flux de données centralisé pour appuyer ces analyses.
 
 Architecture medallion à trois zones (Bronze / Silver / Gold). Deux mécanismes de contrôle qualité, indépendants et complémentaires, coexistent :
 
-- **Niveau génération (Python/Pydantic)** : valide la conformité structurelle des données générées, indépendamment du pipeline NiFi (`data/raw/` vs `data/quarantine/`). Démontre la qualité dès la source.
-- **Niveau pipeline (NiFi, Flow 2)** : applique son propre filtrage des anomalies métier lors du passage Bronze → Silver, sur les données brutes non filtrées (`data/generated/`). Démontre la qualité orchestrée par l'outil d'intégration, conformément à l'exigence « NiFi comme outil principal d'intégration ».
+- **Niveau génération (Python/Pydantic)** : valide la conformité structurelle des données générées, indépendamment du pipeline NiFi. Les enregistrements valides vont dans `data/raw/`, les invalides dans `data/quarantine/` avec le motif d'erreur.
+- **Niveau pipeline (NiFi, Flow 2)** : applique son propre filtrage des anomalies métier lors du passage Bronze → Silver, sur les données brutes non filtrées (`data/generated/`). Les rejets sont tracés dans `silver-rejected/`.
 
+```mermaid
+flowchart TD
+    SRC["Sources synthétiques<br/>Parcelles · Météo · Irrigation · Récoltes"] --> GEN["data/generated/<br/>données brutes, avec anomalies"]
 
+    GEN --> PYD["Validation Pydantic"]
+    PYD --> RAW["data/raw/<br/>valides"]
+    PYD --> QUA["data/quarantine/<br/>rejetées"]
+
+    GEN --> F1["NiFi Flow 1<br/>ingestion"]
+    F1 --> BRZ[("MinIO · bronze")]
+    BRZ --> F2["NiFi Flow 2<br/>typage · nettoyage · filtrage"]
+    F2 --> SLV[("MinIO · silver")]
+    F2 --> REJ[("MinIO · silver-rejected")]
+    SLV --> F3["NiFi Flow 3<br/>chargement Gold"]
+    F3 --> PG[("PostgreSQL<br/>agri_db / agri_dw")]
+    F3 --> MG[("MongoDB<br/>agri_logs")]
+    PG --> GRA["Grafana"]
+    GRA --> KPI["KPIs d'aide à la décision"]
 ```
-                   SOURCES DE DONNÉES (générées, 100% synthétiques)
-                          │
-          ┌───────────────┼────────────────┬────────────────┐
-          │               │                │                │
-       Parcelles        Météo          Irrigation     Récoltes/Ventes
-          │               │                │                │
-          └───────────────┴────────────────┴────────────────┘
-                          │
-              ┌───────────┴───────────┐
-              ▼                       ▼
-
-  Validation Pydantic (Python)     Données brutes (data/generated/)
-  data/raw/ ── data/quarantine/            │
-  (contrôle qualité source,                ▼
-  démonstratif, décorrélé          Apache NiFi (Flow 1 — Bronze)
-  du pipeline NiFi)                        │
-                                            ▼
-                          MinIO — agriculture-raw/bronze/<entité>/
-                                            │
-                                            ▼
-                       Apache NiFi (Flow 2 — typage, nettoyage, filtrage)
-                                            │
-                          ┌─────────────────┴─────────────────┐
-                          ▼                                   ▼
-                MinIO — silver/<entité>/          MinIO — silver_rejected/<entité>/
-                                            │            (anomalies tracées)
-                                            ▼
-                          Apache NiFi (Flow 3 — chargement Gold)
-                                            │
-                          ┌─────────────────┼─────────────────┐
-                          ▼                                   ▼
-                    PostgreSQL                            MongoDB
-                  (schéma étoile)              (weather_readings, irrigation_readings)
-                          │
-                          ▼
-                       Grafana
-                          │
-                          ▼
-             Indicateurs d'aide à la décision (KPIs)
-```
-
 
 | Couche | Technologie | Responsabilité |
 |---|---|---|
 | Génération des données | Python | Jeux de données de test réalistes, entièrement synthétiques |
-| Validation source (démonstrative) | Pydantic | Valider la conformité structurelle dès la génération, isoler les anomalies (`data/quarantine/`) |
+| Validation source | Pydantic | Valider la conformité structurelle dès la génération, isoler les anomalies (`data/quarantine/`) |
 | Intégration et qualité pipeline | Apache NiFi | Ingérer, typer, nettoyer, filtrer les anomalies métier, router, charger |
 | Data Lake | MinIO | Stocker les jeux de données bruts (Bronze), nettoyés (Silver) et rejetés (Silver rejected) |
 | Data Warehouse | PostgreSQL | Stocker les données analytiques structurées (Gold, schéma en étoile) |
@@ -109,9 +85,13 @@ Quatre entités, générées localement, 100 % synthétiques (aucune source exte
 
 ## 5. Stratégie de qualité des données
 
-**Niveau génération (Python/Pydantic)** : démonstratif, en parallèle du pipeline principal. Les enregistrements valides vont dans `data/raw/`, les invalides dans `data/quarantine/` (ex. `surface_m2 <= 0`, `sold_kg > harvest_kg`, `soil_humidity_pct > 100`).
+**Niveau génération (Python/Pydantic)** : les enregistrements valides vont dans `data/raw/`, les invalides dans `data/quarantine/` avec le motif d'erreur (colonne `validation_error`, et numéro de ligne pour l'irrigation). Exemples de règles : `surface_m2 <= 0`, `sold_kg > harvest_kg`, `soil_humidity_pct > 100`.
 
-**Niveau pipeline (NiFi, Flow 2)** : c'est ce flux, et non la validation Python, qui alimente réellement le data lake. Chaque entité passe par un typage strict de schéma (Avro), un nettoyage des valeurs manquantes (ex. `manager` vide → `Non renseigné`), puis un filtrage des anomalies métier via `QueryRecord`. Les enregistrements filtrés sont tracés dans `silver_rejected/` plutôt qu'écartés silencieusement.
+**Niveau pipeline (NiFi, Flow 2)** : c'est ce flux, et non la validation Python, qui alimente le data lake. Chaque entité passe par un typage strict de schéma (Avro), un nettoyage des valeurs manquantes (ex. `manager` vide devient `Non renseigné`), puis un filtrage des anomalies métier via `QueryRecord`. Les enregistrements filtrés sont tracés dans `silver-rejected/` plutôt qu'écartés silencieusement.
+
+**Résultat sur le jeu de rejeu** (`data/samples/unfiltered/`) : les deux contrôles rejettent exactement les mêmes lignes : 2 parcelles, 3 relevés météo, 2 récoltes et 4 relevés d'irrigation.
+
+**Protection côté base** : une contrainte `CHECK` (migration 004) impose `soil_humidity_pct` entre 0 et 100 dans `fact_irrigation`.
 
 ## 6. Data Warehouse
 
@@ -119,7 +99,7 @@ PostgreSQL implémente un modèle dimensionnel en schéma en étoile, base `agri
 
 **Dimensions**
 - `dim_zone` : référentiel fixe des 4 zones (Niayes, Vallée du Fleuve, Casamance, Sine-Saloum)
-- `dim_date` : référentiel calendaire (2024–2030)
+- `dim_date` : référentiel calendaire (2024–2030), chargé par la migration `002_seed_dim_date.sql`
 - `dim_parcel` : les parcelles, avec clé de substitution technique `parcel_dim_id` (SERIAL) séparée de la clé métier source `parcel_id` (VARCHAR unique)
 
 **Tables de faits** (référencent les dimensions via `parcel_dim_id`, `zone_id`, `date_id`)
@@ -127,21 +107,26 @@ PostgreSQL implémente un modèle dimensionnel en schéma en étoile, base `agri
 - `fact_weather`
 - `fact_harvest`
 
-Ordre de chargement (Flow 3) : `dim_zone` → `dim_date` → `dim_parcel` → tables de faits, avec lookup de `parcel_dim_id` / `zone_id` / `date_id` avant chaque insertion.
+Ordre de chargement (Flow 3) : `dim_zone` → `dim_date` → `dim_parcel` → tables de faits, avec lookup de `parcel_dim_id` / `zone_id` / `date_id` avant chaque insertion. Les seeds des dimensions `dim_zone` et `dim_date` sont idempotents (`ON CONFLICT`) ; `dim_date` est aussi remplie par la migration `002_seed_dim_date.sql`, ce qui rend le seed du flow 3 redondant mais sans effet.
 
 Volumes chargés : `dim_zone` 4, `dim_date` 2557, `dim_parcel` 23, `fact_weather` 717, `fact_harvest` 21, `fact_irrigation` 6910.
 
-Le modèle physique est documenté dans `sql/migrations/`.
+Le modèle physique est documenté dans `sql/migrations/` (001 schéma, 002 `dim_date`, 003 vues KPI, 004 contrainte de plage).
 
 ## 7. Indicateurs d'aide à la décision (KPIs)
 
-Les KPIs sont exposés sous forme de vues PostgreSQL et visualisés dans Grafana.
+Les KPIs sont visualisés dans Grafana à partir de l'entrepôt PostgreSQL.
 
 | KPI | Formule | Colonnes sources |
 |---|---|---|
-| Efficience de l'irrigation | `rendement_kg / volume_eau_m3` | `harvest_kg`, `water_volume_m3` |
-| Taux de perte post-récolte | `(recolte_kg - vendu_kg) / recolte_kg` | `harvest_kg`, `sold_kg` |
-| Productivité de la parcelle | `rendement_kg / surface_m2` | `harvest_kg`, `surface_m2` |
+| Chiffre d'affaires global (FCFA) | `somme(sold_kg × unit_price_fcfa)` | `sold_kg`, `unit_price_fcfa` |
+| Productivité de la parcelle (kg/m²) | `harvest_kg / surface_m2` | `harvest_kg`, `surface_m2` |
+| Taux de perte post-récolte (%) | `(harvest_kg - sold_kg) / harvest_kg` | `harvest_kg`, `sold_kg` |
+| Efficience de l'irrigation (kg/m³) | `harvest_kg / water_volume_m3` | `harvest_kg`, `water_volume_m3` |
+
+Les trois derniers KPIs (productivité, taux de perte, efficience) sont exposés par des vues PostgreSQL (migration `003_create_kpi_views.sql`) ; le chiffre d'affaires est calculé directement dans la requête du panneau Grafana.
+
+Le tableau de bord (`grafana/dashboards/agri-kpis-dashboard.json`) propose les filtres `zone` et `Culture`, ainsi que : productivité par culture, taux de pertes post-récolte, efficience de l'irrigation par culture, température contre volume d'irrigation, synthèse des parcelles et localisation des parcelles.
 
 ## 8. Choix technologiques
 
@@ -151,9 +136,9 @@ Les KPIs sont exposés sous forme de vues PostgreSQL et visualisés dans Grafana
 
 **PostgreSQL** : entrepôt analytique relationnel, modélisation dimensionnelle en étoile.
 
-**MongoDB** : retenu à la place de la stack ELK pour indexer les données temporelles (météo, irrigation) : stockage document flexible, complémentaire de PostgreSQL plutôt que substitutif. Détail dans `mongo/README.md`. Le détail des compromis ELK vs MongoDB est développé dans le rapport technique.
+**MongoDB** : retenu à la place de la stack ELK pour indexer les données temporelles (météo, irrigation) : stockage document flexible, complémentaire de PostgreSQL plutôt que substitutif. Base `agri_logs`, collections `weather_readings` et `irrigation_readings`. Détail dans `mongo/README.md`. Le détail des compromis ELK vs MongoDB est développé dans le rapport technique.
 
-**Grafana** : visualisation des KPIs.
+**Grafana** : visualisation des KPIs, datasource PostgreSQL provisionnée automatiquement.
 
 **Docker Compose** : reproductibilité de l'environnement local (5 services : PostgreSQL, MinIO, MongoDB, NiFi, Grafana).
 
@@ -164,24 +149,31 @@ agri-data-platform/
 ├── .github/
 │   └── workflows/
 ├── data/
-│   ├── generator/
-│   ├── generated/
-│   ├── raw/
-│   └── quarantine/
+│   ├── generator/            # scripts de génération (4 entités)
+│   ├── generated/            # zone de dépôt consommée par NiFi (vidée après lecture)
+│   ├── raw/                  # données validées par Pydantic (jeu de référence du gold)
+│   ├── quarantine/           # données rejetées par Pydantic, avec motif
+│   └── samples/
+│       └── unfiltered/       # données brutes avec anomalies (source du rejeu NiFi)
 ├── src/
 │   └── validation/
 ├── nifi/
-│   └── flows/          # export JSON des flows
+│   ├── flows/                # export JSON des 3 flows
+│   └── drivers/              # driver JDBC PostgreSQL (monté dans NiFi)
 ├── sql/
-│   └── migrations/
-├── grafana/            
+│   └── migrations/           # 001 à 004
+├── scripts/
+│   └── init_db.sh            # charge les migrations dans PostgreSQL
+├── grafana/
+│   ├── dashboards/           # export JSON du tableau de bord
+│   └── provisioning/         # datasource PostgreSQL
 ├── mongo/
 │   ├── init_indexes.js
 │   └── README.md
 ├── tests/
-├── docs/
 ├── docker-compose.yml
 ├── .env.example
+├── .gitattributes
 ├── requirements.txt
 ├── .gitignore
 └── README.md
@@ -189,16 +181,57 @@ agri-data-platform/
 
 ## 10. Reproductibilité
 
+Le projet se reconstruit depuis zéro après un `docker compose down -v`. Certaines étapes restent manuelles dans NiFi, car NiFi n'exporte jamais les mots de passe.
+
+### 10.1 Démarrer l'infrastructure
+
 ```bash
-cp .env.example .env      # renseigner les identifiants
+cp .env.example .env        # puis remplacer les valeurs factices (change_me)
 docker compose up -d
+bash scripts/init_db.sh     # charge les migrations SQL dans PostgreSQL (schéma agri_dw)
 ```
 
-Services exposés : PostgreSQL (5433), MinIO (9000/9001), MongoDB (27018), NiFi (8443), Grafana (3000).
+- MongoDB crée ses collections et ses index à la première initialisation (`mongo/init_indexes.js`).
+- Grafana crée sa datasource PostgreSQL automatiquement (`grafana/provisioning/`).
+- Le driver JDBC est versionné dans `nifi/drivers/` et monté dans NiFi (`/opt/nifi/nifi-current/jdbc-drivers/`).
 
-Prérequis additionnels :
-- le driver JDBC PostgreSQL (`postgresql-42.7.4.jar`) doit être présent dans `/opt/nifi/nifi-current/lib/` du conteneur NiFi. Il n'est pas persisté entre redémarrages (limite connue, voir section 14) ;
-- les index MongoDB se créent avec `mongo/init_indexes.js` (voir `mongo/README.md`).
+Services exposés : PostgreSQL (5433), MinIO (9000/9001), MongoDB (27018), NiFi (8443), Grafana (3000, accessible uniquement depuis la machine locale).
+
+### 10.2 Configurer NiFi (https://localhost:8443/nifi)
+
+1. Créer le bucket `agriculture-raw` dans MinIO (http://localhost:9001).
+2. Importer les 3 flows de `nifi/flows/` (Process Group, icône d'import).
+3. Saisir les mots de passe, jamais exportés :
+   - `DBCP-Postgres-Gold` : utilisateur et mot de passe de `.env`, driver `/opt/nifi/nifi-current/jdbc-drivers/postgresql-42.7.4.jar`
+   - clés MinIO (`MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`) dans les processeurs S3
+   - `MongoDB-Connection` : mot de passe Mongo de `.env`
+4. Activer les Controller Services.
+
+### 10.3 Rejouer le pipeline
+
+```bash
+cp data/samples/unfiltered/* data/generated/    # GetFile supprime les fichiers après lecture
+```
+
+- `data/raw/` : données **validées** par Pydantic (jeu de référence, correspond au gold et au tableau de bord).
+- `data/quarantine/` : données **rejetées** par Pydantic, avec le motif d'erreur.
+- `data/samples/unfiltered/` : données **brutes** avec anomalies (valides plus rejetées), source du rejeu. Le Bronze reçoit ainsi la donnée brute et le flow 2 doit en rejeter 2 parcelles, 3 relevés météo, 2 récoltes et 4 relevés d'irrigation.
+
+Lancer les flows dans l'ordre : flow 1 (Bronze), flow 2 (Silver et rejets), flow 3 (Gold). Ne pas démarrer `GetFile-Irrigation` et `PutS3-Irrigation-Bronze` du flow 2 : ils font doublon avec le flow 1. Ne pas relancer le flow 3 sur un entrepôt déjà chargé : il n'est pas idempotent.
+
+Si la validation Pydantic doit être rejouée, la lancer **avant** NiFi : `GetFile` supprime les fichiers de `data/generated/` après lecture.
+
+### 10.4 Grafana (http://localhost:3000)
+
+Se connecter avec `GRAFANA_USER` et `GRAFANA_PASSWORD` de `.env`, puis importer `grafana/dashboards/agri-kpis-dashboard.json`. La datasource `Postgres-agri` existe déjà.
+
+### 10.5 Vérification
+
+| Cible | Attendu |
+|---|---|
+| PostgreSQL `agri_dw` | `dim_zone` 4, `dim_parcel` 23, `fact_weather` 717, `fact_irrigation` 6910, `fact_harvest` 21 |
+| MongoDB `agri_logs` | `weather_readings` 717, `irrigation_readings` 6910 |
+| MinIO `silver-rejected` | 2 parcelles, 3 relevés météo, 2 récoltes, 4 relevés d'irrigation |
 
 ## 11. Sources de données
 
@@ -206,23 +239,24 @@ Données 100 % générées et synthétiques, aucune source externe, conformémen
 
 ## 12. Statut du projet
 
-**Statut : en cours de finalisation**
+**Statut : infrastructure et pipeline terminés, livrables en cours**
 
 - [x] Initialisation du dépôt et structure du projet
 - [x] Génération des données (4 entités, Python)
 - [x] Validation des données (Pydantic, quarantaine fonctionnelle)
-- [x] Infrastructure Docker (5 services)
-- [x] Modèle dimensionnel PostgreSQL (schéma validé, 6 tables)
+- [x] Infrastructure Docker (5 services) et test de reconstruction complète (`down -v`)
+- [x] Modèle dimensionnel PostgreSQL (6 tables, migrations 001 à 004)
 - [x] Flow NiFi 1 : Bronze (4 entités)
-- [x] Flow NiFi 2 : nettoyage, typage, filtrage, quarantaine `silver_rejected` (4 entités)
-- [x] Flow NiFi 3 : chargement Gold PostgreSQL (4 entités)
+- [x] Flow NiFi 2 : nettoyage, typage, filtrage, rejets `silver-rejected` (4 entités)
+- [x] Flow NiFi 3 : chargement Gold PostgreSQL et MongoDB (4 entités)
 - [x] Intégration MongoDB (indexation weather/irrigation, index documentés)
-- [ ] Tableau de bord Grafana (3 KPIs créés, export JSON et améliorations en cours)
+- [x] Tableau de bord Grafana (4 KPIs, datasource provisionnée)
+- [ ] Tests automatisés (pytest) et intégration continue (GitHub Actions)
 - [ ] Rapport technique et présentation finale
 
 ## 13. Principes d'ingénierie
 
-- **Reproductibilité** : environnement exécutable localement via Docker Compose.
+- **Reproductibilité** : environnement exécutable localement via Docker Compose, reconstruction complète testée.
 - **Séparation des responsabilités** : génération, validation, intégration, stockage et visualisation restent distincts.
 - **Qualité des données à deux niveaux** : contrôle source (Pydantic) et contrôle pipeline (NiFi), tous deux observables, jamais silencieux.
 - **Gestion de versions** : développement incrémental, un commit = une phase testée.
@@ -232,21 +266,27 @@ Données 100 % générées et synthétiques, aucune source externe, conformémen
 
 - Données agricoles simulées : ne reproduit pas toute la complexité d'un système d'information agricole réel.
 - Les KPIs sont des indicateurs d'aide à la décision, pas des recommandations agronomiques autonomes.
-- Le driver JDBC PostgreSQL, installé manuellement dans le conteneur NiFi, n'est pas persisté entre redémarrages (pas de volume dédié). À réinstaller après un `docker compose down`.
-- Les flows de chargement Gold ne sont pas idempotents : relancer un flow Flow 3 sans `TRUNCATE` préalable de la table de faits cible ajoute des doublons.
-- Identifiants Grafana actuellement en dur dans `docker-compose.yml` plutôt que via `.env`.
-- Filtrage des anomalies basé sur des règles de plage simples (`surface_m2`, `temperature_c`, `soil_humidity_pct`, `sold_kg`).
-- La validation Pydantic (`data/quarantine/`) et le filtrage NiFi (`silver_rejected/`) appliquent des règles équivalentes de façon indépendante, sans lien opérationnel.
+- Les mots de passe NiFi (PostgreSQL, MinIO, MongoDB) se ressaisissent à la main après un `down -v`, car NiFi ne les exporte pas.
+- `.env.example` ne contient que des valeurs factices à changer hors machine locale.
+- Les seeds de dimensions (`dim_zone`, `dim_date`) sont idempotents, mais le chargement des tables de faits ne l'est pas : relancer le flow 3 sans `TRUNCATE` préalable des tables de faits ajoute des doublons.
+- Les coordonnées GPS des parcelles sont simulées et ne correspondent pas toujours à la zone indiquée : les parcelles de Casamance ont une latitude moyenne d'environ 15,7 °N alors que la Casamance se situe vers 12,5 à 13 °N. La carte du tableau de bord illustre la répartition par zone, pas des positions réelles.
+- Les générateurs météo et irrigation n'ont pas de graine fixe : `data/raw/` est le jeu de référence versionné, et le régénérer change les valeurs.
 - Les identifiants de parcelles (`parcel_id`) sont générés avec `uuid4()`, non reproductibles d'une génération à l'autre : régénérer les données exige de recharger toute la chaîne Parcel avant les autres entités.
+- Filtrage des anomalies basé sur des règles de plage simples (`surface_m2`, `temperature_c`, `soil_humidity_pct`, `sold_kg`).
+- Les rejets de `silver-rejected/` contiennent les colonnes d'origine sans le motif de rejet (la quarantaine Pydantic, elle, garde `validation_error`). Les deux contrôles rejettent les mêmes lignes sur ce jeu de données.
+- Le rejet d'irrigation écrit par NiFi est un tableau JSON sur une seule ligne, et non du JSONL comme la source.
+- Le flow 2 contient une chaîne d'irrigation redondante avec le flow 1 (à ne pas démarrer), et le seed de `dim_date` du flow 3 fait doublon avec la migration 002 (sans effet, grâce à `ON CONFLICT`).
+- L'image `minio/minio` n'est pas figée (`latest`).
+- Le tableau de bord n'est pas provisionné : il s'importe à la main.
 
 ## 15. Perspectives d'amélioration
 
-- Réutilisation des scripts SQL (conçus de façon idempotente) dans un futur orchestrateur (Airflow, Spark).
-- Volume Docker persistant pour les dépendances JDBC de NiFi.
-- Externalisation complète des identifiants (Grafana, PostgreSQL) via variables d'environnement.
-- Unification des deux mécanismes de contrôle qualité (Pydantic et NiFi).
-- Génération des `parcel_id` avec une graine fixe, pour des jeux de données reproductibles.
+- Réutilisation des scripts SQL dans un futur orchestrateur (Airflow, Spark).
 - Chargement Gold idempotent (UPSERT) pour permettre de relancer un flow sans doublons.
+- Graine fixe pour les générateurs et les `parcel_id`, pour des jeux de données reproductibles.
+- Motif de rejet dans `silver-rejected/` (colonne `rejection_reason`).
+- Unification des deux mécanismes de contrôle qualité (Pydantic et NiFi).
+- Provisionnement automatique du tableau de bord Grafana et image MinIO figée.
 
 ## 16. Contexte du projet
 
@@ -255,5 +295,3 @@ Ce projet est développé dans le cadre de la certification Data Engineering For
 ## 17. Auteur
 
 Aliou THIELO — [github.com/Aliou-THIELO](https://github.com/Aliou-THIELO)
-
-
