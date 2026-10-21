@@ -1,5 +1,7 @@
 # Agri Data Platform
 
+![CI](https://github.com/Aliou-THIELO/agri-data-platform/actions/workflows/ci.yml/badge.svg)
+
 **Plateforme Data Engineering de bout en bout pour l'aide à la décision agricole**
 
 *Projet Force-N — Certificat Data Engineering — Projet 5 : Agriculture maraîchère*
@@ -251,7 +253,7 @@ Données 100 % générées et synthétiques, aucune source externe, conformémen
 - [x] Flow NiFi 3 : chargement Gold PostgreSQL et MongoDB (4 entités)
 - [x] Intégration MongoDB (indexation weather/irrigation, index documentés)
 - [x] Tableau de bord Grafana (4 KPIs, datasource provisionnée)
-- [ ] Tests automatisés (pytest) et intégration continue (GitHub Actions)
+- [x] Tests automatisés (pytest, 21 tests) et intégration continue (GitHub Actions)
 - [ ] Rapport technique et présentation finale
 
 ## 13. Principes d'ingénierie
